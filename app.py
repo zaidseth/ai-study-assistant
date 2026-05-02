@@ -73,6 +73,7 @@ if pdf and not st.session_state.processed:
 
             st.session_state.chunks = chunks
             st.session_state.embeddings = embeddings
+            st.session_state.full_text = text
             st.session_state.processed = True
 
             st.success("✅ PDF processed successfully!")
@@ -83,10 +84,13 @@ if pdf and not st.session_state.processed:
 
 # ---------- FEATURES ----------
 if st.session_state.processed:
-    option = st.selectbox("Choose Feature", ["Q&A", "Summary"])
+    option = st.selectbox(
+        "Choose Feature",
+        ["❓ Q&A", "📝 Summary", "🎲 Quiz", "👶 Explain Like I'm 10"]
+    )
 
-    # Q&A
-    if option == "Q&A":
+    # ---------- Q&A ----------
+    if option == "❓ Q&A":
         question = st.text_input("Ask a question")
 
         if question:
@@ -113,24 +117,83 @@ Question: {question}
                     messages=[{"role": "user", "content": prompt}],
                     model=MODEL_NAME
                 )
-
                 st.write(response.choices[0].message.content)
-
             except Exception as e:
                 st.error(f"Groq Error: {e}")
 
-    # Summary
-    if option == "Summary":
+    # ---------- SUMMARY ----------
+    elif option == "📝 Summary":
         if st.button("Generate Summary"):
             try:
-                text_sample = " ".join(st.session_state.chunks[:10])
+                text_sample = st.session_state.full_text[:5000]
 
                 response = client.chat.completions.create(
                     messages=[{"role": "user", "content": f"Summarize:\n{text_sample}"}],
                     model=MODEL_NAME
                 )
-
                 st.write(response.choices[0].message.content)
+            except Exception as e:
+                st.error(f"Groq Error: {e}")
 
+    # ---------- QUIZ ----------
+    elif option == "🎲 Quiz":
+        num_q = st.slider("Number of questions", 3, 10, 5)
+
+        if st.button("Generate Quiz"):
+            try:
+                text_sample = st.session_state.full_text[:5000]
+
+                prompt = f"""
+Create a {num_q}-question MCQ quiz.
+
+Text:
+{text_sample}
+
+Each question must have:
+- Question
+- 4 options (A-D)
+- Correct answer
+- Explanation
+"""
+
+                response = client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=MODEL_NAME
+                )
+                st.write(response.choices[0].message.content)
+            except Exception as e:
+                st.error(f"Groq Error: {e}")
+
+    # ---------- EXPLAIN LIKE I'M 10 ----------
+    elif option == "👶 Explain Like I'm 10":
+        topic = st.text_input("Enter topic")
+
+        if topic:
+            rel = retrieve(
+                topic,
+                st.session_state.chunks,
+                st.session_state.embeddings
+            )
+
+            context = "\n".join(rel)
+
+            prompt = f"""
+Explain this like a 10-year-old.
+
+Topic: {topic}
+
+Context:
+{context}
+
+Use simple words and examples.
+End with "Big Idea".
+"""
+
+            try:
+                response = client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=MODEL_NAME
+                )
+                st.write(response.choices[0].message.content)
             except Exception as e:
                 st.error(f"Groq Error: {e}")
